@@ -50,11 +50,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Control referrer information
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-        # Content Security Policy (restrictive for API)
+        # Content Security Policy
+        # Allow Swagger UI resources while maintaining security
         response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' https://fastapi.tiangolo.com data:; "
+            "font-src 'self' https://cdn.jsdelivr.net; "
             "frame-ancestors 'none'; "
-            "form-action 'none'"
+            "form-action 'self'"
         )
 
         # Permissions Policy (disable unnecessary browser features)
