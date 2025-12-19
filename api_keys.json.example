@@ -1,0 +1,13 @@
+{
+  "keys": {
+    "sk_example_key_12345": {
+      "user_id": "example_user",
+      "tier": "free",
+      "created_at": "2025-01-01T00:00:00Z",
+      "is_active": true,
+      "calls_this_month": 0,
+      "last_reset": "2025-01-01T00:00:00Z"
+    }
+  },
+  "_comment": "Copy this file to api_keys.json and add your keys. Tiers: free, pro, enterprise"
+}

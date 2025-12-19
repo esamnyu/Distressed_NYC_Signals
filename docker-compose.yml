@@ -1,0 +1,50 @@
+# NYC Distress Signal API - Docker Compose
+# For local development and testing
+
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # API Settings
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      
+      # Authentication (set these for production)
+      - REQUIRE_API_KEY=false
+      - ADMIN_MASTER_KEY=${ADMIN_MASTER_KEY:-}
+      
+      # NYC Data Sources
+      - NYC_OPENDATA_APP_TOKEN=${NYC_OPENDATA_APP_TOKEN:-}
+      - NYC_311_LOOKBACK_DAYS=90
+      
+      # Cache Settings
+      - CACHE_TTL_SECONDS=86400
+      - CACHE_DIRECTORY=/app/.cache
+      
+      # Rate Limiting
+      - RATE_LIMIT_REQUESTS_PER_SECOND=1.0
+    volumes:
+      # Persist cache between restarts
+      - cache_data:/app/.cache
+      # Persist logs
+      - log_data:/app/logs
+      # Persist API keys
+      - ./api_keys.json:/app/.api_keys.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  cache_data:
+  log_data:
