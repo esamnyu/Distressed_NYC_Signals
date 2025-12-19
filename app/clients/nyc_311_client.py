@@ -1,19 +1,23 @@
 """
-NYC 311 API Client using Socrata Open Data API (sodapy).
+NYC 311 Complaints API Client.
 
-Fetches complaint data for properties from the NYC 311 Service Requests dataset.
+Fetches complaint data from the NYC 311 Service Requests dataset via Socrata API.
+311 complaints provide valuable signals for property distress, including:
+- Illegal conversions (strong distress signal)
+- Heat/hot water complaints (moderate signal)
+- Noise complaints (weak signal)
 """
 
 import asyncio
 import logging
-import re
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 
 from sodapy import Socrata
 
 from ..config import get_settings
 from ..models import NYC311Data, Borough, TimelineEvent, EventSource
+from ..utils import sanitize_soql_value, get_borough_name
 
 logger = logging.getLogger(__name__)
 
@@ -59,41 +63,9 @@ class NYC311Client:
             )
         return self._client
 
-    def _sanitize_soql_value(self, value: str) -> str:
-        """
-        Sanitize a value for use in SoQL queries to prevent injection.
-
-        - Removes or escapes dangerous characters
-        - Limits length to prevent buffer issues
-        """
-        if not value:
-            return ""
-
-        # Limit length
-        value = value[:200]
-
-        # Remove/escape SoQL special characters that could enable injection
-        # Single quotes are the main injection vector in SoQL
-        value = value.replace("'", "''")  # Escape single quotes by doubling
-
-        # Remove other potentially dangerous characters
-        value = re.sub(r'[;\-\-\|\&\$\(\)\[\]\{\}]', '', value)
-
-        return value.strip()
-
-    def _get_borough_name(self, borough: Borough) -> str:
-        """Convert Borough enum to 311 dataset format."""
-        # 311 data uses uppercase borough names
-        mapping = {
-            Borough.MANHATTAN: "MANHATTAN",
-            Borough.BRONX: "BRONX",
-            Borough.BROOKLYN: "BROOKLYN",
-            Borough.QUEENS: "QUEENS",
-            Borough.STATEN_ISLAND: "STATEN ISLAND",
-        }
-        return mapping[borough]
-
-    def _categorize_complaint(self, complaint_type: str) -> str:
+    def _categorize_complaint(
+        self, complaint_type: str
+    ) -> Literal["illegal_conversion", "heat_water", "noise_residential", "other"]:
         """Categorize a complaint type into our signal categories."""
         complaint_lower = complaint_type.lower()
 
@@ -136,9 +108,9 @@ class NYC311Client:
             lookback_str = lookback_date.strftime("%Y-%m-%dT00:00:00.000")
 
             # Sanitize inputs to prevent SoQL injection
-            house_num_safe = self._sanitize_soql_value(house_number.upper())
-            street_safe = self._sanitize_soql_value(street.upper())
-            borough_name = self._get_borough_name(borough)  # Enum-based, safe
+            house_num_safe = sanitize_soql_value(house_number.upper())
+            street_safe = sanitize_soql_value(street.upper())
+            borough_name = get_borough_name(borough, format="upper")  # 311 uses uppercase
 
             # Query with WHERE clause for address matching
             # Using LIKE for partial street matching
@@ -217,9 +189,9 @@ class NYC311Client:
         """
         try:
             # Sanitize inputs to prevent SoQL injection
-            house_num_safe = self._sanitize_soql_value(house_number.upper())
-            street_safe = self._sanitize_soql_value(street.upper())
-            borough_name = self._get_borough_name(borough)  # Enum-based, safe
+            house_num_safe = sanitize_soql_value(house_number.upper())
+            street_safe = sanitize_soql_value(street.upper())
+            borough_name = get_borough_name(borough, format="upper")  # 311 uses uppercase
 
             # Query without date filter for full history
             where_clause = (
@@ -285,7 +257,12 @@ _client_instance: Optional[NYC311Client] = None
 
 
 def get_311_client() -> NYC311Client:
-    """Get the singleton 311 client instance."""
+    """
+    Get the singleton 311 complaints client instance.
+
+    Returns:
+        NYC311Client: Shared client instance for 311 complaint queries
+    """
     global _client_instance
     if _client_instance is None:
         _client_instance = NYC311Client()
